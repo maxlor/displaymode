@@ -159,8 +159,7 @@ void listRates(const string &output) {
 	const unordered_set<RRMode> &preferredModes = outputModes.preferredModes;;
 	const map<int, map<int, multimap<double, RRMode>>> &modeMap = outputModes.availableModes;
 	
-	cout << "Refresh rates for " << outputModes.currentWidth << "x" << outputModes.currentHeight
-	     << " on " << output << ":" << endl;
+	cout << "Refresh rates for " << output << ":" << endl;
 	if (modes.size() == 0) {
 		cout << "  (no refresh rates)" << endl;
 		return;
