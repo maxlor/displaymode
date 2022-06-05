@@ -20,9 +20,11 @@ Using DisplayMode
 To show the current resolution and refreshrate, run `displaymode` without any
 parameters:
 
-    $ displaymode
-    Refresh rates for HDMI-A-1:
-      3840x2160@...    60      **60**      59.94   50      30      _29.97_   25      24      23.98
+<code><pre>
+  $ displaymode
+  Refresh rates for HDMI-A-1:
+    3840x2160@...    60      **60**      59.94   50      30      _29.97_   25      24      23.98
+</pre></code>
 
 Refresh rates in **bold** are your display's default modes. The rate in
 _italics_ will actually be shown as reverse text in reality, and it indicates
