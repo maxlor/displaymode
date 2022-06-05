@@ -20,17 +20,15 @@ Using DisplayMode
 To show the current resolution and refreshrate, run `displaymode` without any
 parameters:
 
-<code><pre style="background-color: white; color: black">
-  $ displaymode
-  Refresh rates for HDMI-A-1:
-    3840x2160@...    60      <strong>60</strong>      59.94   50      30      <span style="background-color: var(--color-canvas-subtle, white); filter: invert(1)">29.97</span>   25      24      23.98
-</pre></code>
+    $ displaymode
+    Refresh rates for HDMI-A-1:
+      3840x2160@...    60      **60**      59.94   50      30      _29.97_   25      24      23.98
 
 Refresh rates in **bold** are your display's default modes. The rate in
-<span style="background-color: var(--color-canvas-subtle, white); filter: invert(1)">reverse</span>
-is your currently active refresh rate.
+_italics_ will actually be shown as reverse text in reality, and it indicates
+the currently active refresh rate.
 
-To switch to a different refresh rate, you might try:
+To switch to a different refresh rate, is simple:
 
     $ displaymode 23.9
     
@@ -74,4 +72,4 @@ Using cmake would look something like this:
 License
 -------
 
-DisplayMode is licensed under a BSD 2-clause license. See LICENSE.txt for details.
+DisplayMode is licensed under a MIT license. See LICENSE.txt for details.
