@@ -19,10 +19,20 @@ static const string UNDERLINE = CSI + "4m";
 static const string REVERSE = CSI + "7m";
 static const string RESET = CSI + "0m";
 
+struct OutputModes {
+	RRMode currentMode;
+	int currentWidth;
+	int currentHeight;
+	unordered_set<RRMode> preferredModes;
+	map<int, map<int, multimap<double, RRMode>>> availableModes; // keys: width, height, rate
+};
+
 bool gatherData();
+void listRates(const string &output);
 void listModes(const string &output);
 void listOutputs();
 double refreshRate(const XRRModeInfo *modeInfo);
+OutputModes getOutputModes(const string &output);
 RRMode findMode(const string &output, const string &wantedMode);
 bool setMode(const string &output, const string &wantedMode);
 void showUsage(string name);
@@ -42,6 +52,7 @@ int main(int argc, char *argv[])  {
 	bool flagHelp = false;
 	bool flagListOutputs = false;
 	bool flagListModes = false;
+	bool flagListRates = false;
 	bool flagSetMode = true;
 	string output;
 	string wantedMode;
@@ -76,7 +87,7 @@ int main(int argc, char *argv[])  {
 	if (flagHelp) { showUsage(argv[0]); return 0; }
 	
 	if (not (flagListModes or flagListOutputs or flagSetMode)) {
-		flagListModes = true;
+		flagListRates = true;
 	}
 	
 	if (not gatherData()) { return -1; }
@@ -91,6 +102,7 @@ int main(int argc, char *argv[])  {
 		return -3;
 	}
 	
+	if (flagListRates) { listRates(output); }
 	if (flagListModes) { listModes(output); }
 	if (flagListOutputs) { listOutputs(); }
 	if (flagSetMode) { return setMode(output, wantedMode) ? 0 : -4; }
@@ -141,68 +153,96 @@ bool gatherData() {
 }
 
 
+void listRates(const string &output) {
+	OutputModes outputModes = getOutputModes(output);
+	const RRMode &currentMode = outputModes.currentMode;
+	const unordered_set<RRMode> &preferredModes = outputModes.preferredModes;;
+	const map<int, map<int, multimap<double, RRMode>>> &modeMap = outputModes.availableModes;
+	
+	cout << "Refresh rates for " << outputModes.currentWidth << "x" << outputModes.currentHeight
+	     << " on " << output << ":" << endl;
+	if (modes.size() == 0) {
+		cout << "  (no refresh rates)" << endl;
+		return;
+	}
+	
+	const multimap<double, RRMode> &rateMap = modeMap.at(outputModes.currentWidth).at(outputModes.currentHeight);
+	
+	string wxh = to_string(outputModes.currentWidth) + "x" + to_string(outputModes.currentHeight) + "@...";
+	cout << "  " << left << setw(15) << wxh;
+	
+	for (auto it = rateMap.crbegin(); it != rateMap.crend(); ++it) {
+		double rate = it->first;
+		RRMode mode = it->second;
+		
+		string attrStart = "";
+		string attrEnd = "";
+		
+		if (currentMode == mode)            { attrStart += REVERSE; }
+		if (preferredModes.count(mode) > 0) { attrStart += BOLD; }
+		if (not attrStart.empty())          { attrEnd += RESET; }
+		
+		char buffer[8];
+		snprintf(buffer, sizeof(buffer), "%.2f", rate);
+		string rateString = buffer;
+		if (rateString.substr(rateString.size() - 3, 3) == ".00") {
+			rateString = rateString.substr(0, rateString.size() - 3);
+		}
+		string padString(6 - rateString.size(), ' ');
+		
+		cout << "  " << attrStart << rateString << attrEnd << padString;
+	}
+	
+	cout << endl;
+}
+
+
 void listModes(const string &output) {
 	cout << "Modes for " << output << ":" << endl;
-	if (modes.size() > 0) {
-		// insert modes into a multi-dimensional map for sorting
-		
-		const XRROutputInfo *outputInfo = outputs[output];
-		map<int, map<int, multimap<double, RRMode>>> modeMap;
-		RRMode currentMode = 0;
-		unordered_set<RRMode> preferredModes;
-		
-		auto it = currentModes.find(output);
-		if (it != currentModes.end()) {
-			currentMode = it->second;
-		}
-		
-		for (int i = 0; i < outputInfo->nmode; ++i) {
-			const XRRModeInfo *mode = modes[outputInfo->modes[i]];
-			modeMap[mode->width][mode->height].insert({ refreshRate(mode), mode->id });
-			
-			if (i < outputInfo->npreferred) {
-				preferredModes.insert(mode->id);
-			}
-		}
-		
-		for (auto it = modeMap.crbegin(); it != modeMap.crend(); ++it) {
-			string width = to_string(it->first);
-			auto widthMap = it->second;
-			for (auto it = widthMap.crbegin(); it != widthMap.crend(); ++it) {
-				string height = to_string(it->first);
-				string wxh = width + "x" + height + "@...";
-				cout << "  " << left << setw(15) << wxh;
-				
-				auto rateMap = it->second;
-				for (auto it = rateMap.crbegin(); it != rateMap.crend(); ++it) {
-					double rate = it->first;
-					RRMode mode = it->second;
-					
-					string attrStart = "";
-					string attrEnd = "";
-					
-					if (currentMode == mode)            { attrStart += REVERSE; }
-					if (preferredModes.count(mode) > 0) { attrStart += BOLD; }
-					if (not attrStart.empty())          { attrEnd += RESET; }
-					
-					char buffer[8];
-					snprintf(buffer, sizeof(buffer), "%.2f", rate);
-					string rateString = buffer;
-					if (rateString.substr(rateString.size() - 3, 3) == ".00") {
-						rateString = rateString.substr(0, rateString.size() - 3);
-					}
-					string padString(6 - rateString.size(), ' ');
-					
-					cout << "  " << attrStart << rateString << attrEnd << padString;
-				}
-				
-				cout << endl;
-			}
-		}
-	} else {
+	if (modes.size() == 0) {
 		cout << "  (no modes)" << endl;
+		return;
 	}
-	cout << endl;
+	
+	OutputModes outputModes = getOutputModes(output);
+	const RRMode &currentMode = outputModes.currentMode;
+	const unordered_set<RRMode> &preferredModes = outputModes.preferredModes;;
+	const map<int, map<int, multimap<double, RRMode>>> &modeMap = outputModes.availableModes;
+	
+	for (auto it = modeMap.crbegin(); it != modeMap.crend(); ++it) {
+		string width = to_string(it->first);
+		auto widthMap = it->second;
+		for (auto it = widthMap.crbegin(); it != widthMap.crend(); ++it) {
+			string height = to_string(it->first);
+			string wxh = width + "x" + height + "@...";
+			cout << "  " << left << setw(15) << wxh;
+			
+			auto rateMap = it->second;
+			for (auto it = rateMap.crbegin(); it != rateMap.crend(); ++it) {
+				double rate = it->first;
+				RRMode mode = it->second;
+				
+				string attrStart = "";
+				string attrEnd = "";
+				
+				if (currentMode == mode)            { attrStart += REVERSE; }
+				if (preferredModes.count(mode) > 0) { attrStart += BOLD; }
+				if (not attrStart.empty())          { attrEnd += RESET; }
+				
+				char buffer[8];
+				snprintf(buffer, sizeof(buffer), "%.2f", rate);
+				string rateString = buffer;
+				if (rateString.substr(rateString.size() - 3, 3) == ".00") {
+					rateString = rateString.substr(0, rateString.size() - 3);
+				}
+				string padString(6 - rateString.size(), ' ');
+				
+				cout << "  " << attrStart << rateString << attrEnd << padString;
+			}
+			
+			cout << endl;
+		}
+	}
 }
 
 
@@ -223,7 +263,6 @@ void listOutputs() {
 	} else {
 		cout << "  (no outputs)" << endl;
 	}
-	cout << endl;
 }
 
 
@@ -242,6 +281,37 @@ double refreshRate(const XRRModeInfo *modeInfo) {
 	}
 	
 	return 0.0;
+}
+
+
+OutputModes getOutputModes(const string &output) {
+	OutputModes result;
+	result.currentMode = -1;
+	result.currentWidth = -1;
+	result.currentHeight = -1;
+	
+	// insert modes into a multi-dimensional map for sorting
+	const XRROutputInfo *outputInfo = outputs[output];
+	
+	auto it = currentModes.find(output);
+	if (it != currentModes.end()) {
+		result.currentMode = it->second;
+	}
+	
+	for (int i = 0; i < outputInfo->nmode; ++i) {
+		const XRRModeInfo *mode = modes[outputInfo->modes[i]];
+		result.availableModes[mode->width][mode->height].insert({ refreshRate(mode), mode->id });
+		if (mode->id == result.currentMode) {
+			result.currentWidth = mode->width;
+			result.currentHeight = mode->height;
+		}
+		
+		if (i < outputInfo->npreferred) {
+			result.preferredModes.insert(mode->id);
+		}
+	}
+	
+	return result;
 }
 
 
@@ -340,7 +410,7 @@ bool setMode(const string &output, const string &wantedMode) {
 
 
 void showUsage(string name) {
-	cout << "Usage: " << name << " [-o OUTPUT] [COLUMNSxLINES@]RATE" << endl;
+	cout << "Usage: " << name << " [-o OUTPUT] [WIDTHxHEIGHT@]RATE" << endl;
 	cout << "       " << name << " --list-outputs" << endl;
 	cout << "       " << name << " --list-modes" << endl;
 }
